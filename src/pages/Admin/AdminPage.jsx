@@ -57,7 +57,7 @@ const CandidateModal = ({ candidate, onClose, onSave }) => {
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="image">URL Foto</label>
-            <input type="url" id="image" name="image" value={formData.image} onChange={handleChange} placeholder="https://example.com/image.png" />
+            <input type="url" id="image" name="image" value={formData.image} onChange={handleChange} placeholder="https://placehold.co/40x40" />
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="konsulat">Konsulat/Wilayah</label>
