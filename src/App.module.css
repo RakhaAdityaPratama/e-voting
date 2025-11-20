@@ -1,0 +1,26 @@
+.card {
+  padding: 2em;
+  border-radius: 8px;
+  background-color: #e9f7ef;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.title {
+  color: #1d8348;
+  font-size: 2rem;
+}
+
+.button {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.button:hover {
+  background-color: #218838;
+}

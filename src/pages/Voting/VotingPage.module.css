@@ -1,0 +1,39 @@
+.pageTitle {
+  text-align: center;
+  font-size: 2.2rem;
+  margin-bottom: 1.5em;
+  color: #333;
+}
+
+.candidatesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 30px;
+  margin-bottom: 40px;
+}
+
+.submitSection {
+  text-align: center;
+  margin-top: 40px;
+}
+
+.submitButton {
+  padding: 15px 40px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #fff;
+  background-color: #dc3545;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.submitButton:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.submitButton:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
