@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
 import styles from './LoginPage.module.css';
+import { useAuth } from '../../auth/AuthContext';
 
 function LoginPage() {
   const [email, setEmail] = useState('');
@@ -9,6 +10,22 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { session } = useAuth();
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (session) {
+      // Periksa apakah ini adalah callback dari link verifikasi email
+      const hash = window.location.hash;
+      if (hash.includes('type=signup')) {
+        // Jika ya, arahkan ke halaman sukses
+        navigate('/success', { replace: true });
+      } else {
+        // Jika tidak (login biasa atau sesi sudah ada), arahkan ke home
+        navigate('/home', { replace: true });
+      }
+    }
+  }, [session, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -25,9 +42,8 @@ function LoginPage() {
         throw error;
       }
       
-      // Jika berhasil, onAuthStateChange di App.js akan menangani redirect
-      // Namun, kita bisa juga navigasi langsung di sini
-      navigate('/home');
+      // Redirect akan ditangani oleh useEffect di atas
+      // navigate('/home');
 
     } catch (error) {
       setError(error.message);
@@ -35,6 +51,11 @@ function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Jangan render form jika sesi sedang diproses untuk redirect
+  if (session) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className={styles.container}>

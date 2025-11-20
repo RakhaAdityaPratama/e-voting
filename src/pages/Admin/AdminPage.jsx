@@ -2,41 +2,52 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import styles from './AdminPage.module.css';
 
-// Komponen Modal untuk form Tambah/Edit
+// Komponen Modal untuk form Tambah/Edit dengan FUNGSI UPLOAD
 const CandidateModal = ({ candidate, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: '',
-    image: '',
     konsulat: '',
     visi: '',
     misi: '',
   });
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (candidate) {
       setFormData({
         name: candidate.name || '',
-        image: candidate.image || '',
         konsulat: candidate.konsulat || '',
         visi: candidate.visi || '',
         misi: candidate.misi || '',
       });
+      setImagePreview(candidate.image || null);
     } else {
-      setFormData({ name: '', image: '', konsulat: '', visi: '', misi: '' });
+      // Reset form untuk kandidat baru
+      setFormData({ name: '', konsulat: '', visi: '', misi: '' });
+      setImagePreview(null);
     }
   }, [candidate]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file && (file.type === 'image/png' || file.type === 'image/jpeg')) {
+      setSelectedFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    } else {
+      alert('Silakan pilih file gambar dengan format PNG atau JPG.');
+      setSelectedFile(null);
+      e.target.value = null; // Reset input file
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await onSave(formData);
+      // Kirim form data dan file yang dipilih ke parent component
+      await onSave(formData, selectedFile);
       onClose();
     } catch (error) {
       console.error('Failed to save candidate:', error);
@@ -53,23 +64,26 @@ const CandidateModal = ({ candidate, onClose, onSave }) => {
         <form onSubmit={handleSubmit}>
           <div className={styles.formGroup}>
             <label htmlFor="name">Nama Kandidat</label>
-            <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} required />
+            <input type="text" id="name" name="name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
           </div>
+          
           <div className={styles.formGroup}>
-            <label htmlFor="image">URL Foto</label>
-            <input type="url" id="image" name="image" value={formData.image} onChange={handleChange} placeholder="https://placehold.co/40x40" />
+            <label htmlFor="image">Foto Kandidat</label>
+            <input type="file" id="image" name="image" accept="image/png, image/jpeg" onChange={handleFileChange} />
+            {imagePreview && <img src={imagePreview} alt="Preview" className={styles.imagePreview} />}
           </div>
+
           <div className={styles.formGroup}>
             <label htmlFor="konsulat">Konsulat/Wilayah</label>
-            <input type="text" id="konsulat" name="konsulat" value={formData.konsulat} onChange={handleChange} />
+            <input type="text" id="konsulat" name="konsulat" value={formData.konsulat} onChange={(e) => setFormData({...formData, konsulat: e.target.value})} />
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="visi">Visi</label>
-            <textarea id="visi" name="visi" value={formData.visi} onChange={handleChange} rows="3"></textarea>
+            <textarea id="visi" name="visi" value={formData.visi} onChange={(e) => setFormData({...formData, visi: e.target.value})} rows="3"></textarea>
           </div>
           <div className={styles.formGroup}>
             <label htmlFor="misi">Misi</label>
-            <textarea id="misi" name="misi" value={formData.misi} onChange={handleChange} rows="5"></textarea>
+            <textarea id="misi" name="misi" value={formData.misi} onChange={(e) => setFormData({...formData, misi: e.target.value})} rows="5"></textarea>
           </div>
           <div className={styles.formActions}>
             <button type="button" onClick={onClose} disabled={isSaving} className={styles.cancelButton}>Batal</button>
@@ -93,7 +107,6 @@ function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState(null);
 
-  // Fungsi untuk mengambil data kandidat
   const fetchCandidates = useCallback(async () => {
     try {
       setLoading(true);
@@ -111,63 +124,77 @@ function AdminPage() {
     }
   }, []);
 
-  // Mengambil data saat komponen dimuat dan setup realtime listener
   useEffect(() => {
     fetchCandidates();
-
     const subscription = supabase
       .channel('candidates-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'candidates' },
-        (payload) => {
-          console.log('Change received!', payload);
-          fetchCandidates(); // Ambil ulang semua data jika ada perubahan
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'candidates' }, () => {
+        fetchCandidates();
+      })
       .subscribe();
-
-    // Cleanup subscription saat komponen di-unmount
     return () => {
       supabase.removeChannel(subscription);
     };
   }, [fetchCandidates]);
 
-  // Fungsi CRUD
-  const handleSaveCandidate = async (formData) => {
+  // FUNGSI CRUD DENGAN LOGIKA UPLOAD
+  const handleSaveCandidate = async (formData, selectedFile) => {
+    let imageUrl = editingCandidate?.image || null; // Simpan URL gambar lama (untuk mode edit)
+
+    // Langkah 1: Jika ada file baru yang dipilih, upload ke Supabase Storage
+    if (selectedFile) {
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `public/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('kandidat-images')
+        .upload(filePath, selectedFile);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Langkah 2: Dapatkan Public URL dari file yang baru di-upload
+      const { data: urlData } = supabase.storage
+        .from('kandidat-images')
+        .getPublicUrl(filePath);
+      
+      imageUrl = urlData.publicUrl;
+    }
+
+    // Langkah 3: Siapkan data final untuk disimpan ke database
+    const finalCandidateData = {
+      ...formData,
+      image: imageUrl,
+    };
+
+    // Langkah 4: Simpan data ke tabel 'candidates'
     if (editingCandidate) {
-      // Update
-      const { error } = await supabase
+      // Mode Update
+      const { error: updateError } = await supabase
         .from('candidates')
-        .update(formData)
+        .update(finalCandidateData)
         .eq('id', editingCandidate.id);
-      if (error) throw error;
+      if (updateError) throw updateError;
     } else {
-      // Create
-      const { error } = await supabase.from('candidates').insert([formData]);
-      if (error) throw error;
+      // Mode Create
+      const { error: insertError } = await supabase.from('candidates').insert([finalCandidateData]);
+      if (insertError) throw insertError;
     }
   };
 
   const handleDeleteCandidate = async (candidateId) => {
     if (window.confirm('Apakah Anda yakin ingin menghapus kandidat ini?')) {
       const { error } = await supabase.from('candidates').delete().eq('id', candidateId);
-      if (error) {
-        alert(`Gagal menghapus: ${error.message}`);
-      }
+      if (error) alert(`Gagal menghapus: ${error.message}`);
     }
   };
 
   const handleResetVotes = async () => {
     if (window.confirm('PERINGATAN: Aksi ini akan mengatur ulang (reset) semua suara menjadi 0. Apakah Anda yakin?')) {
-      const { error } = await supabase
-        .from('candidates')
-        .update({ votes: 0 })
-        .neq('votes', 0); // Hanya update yang votes-nya bukan 0
-      
-      if (error) {
-        alert(`Gagal mereset suara: ${error.message}`);
-      }
+      const { error } = await supabase.from('candidates').update({ votes: 0 }).neq('votes', 0);
+      if (error) alert(`Gagal mereset suara: ${error.message}`);
     }
   };
 
@@ -239,3 +266,4 @@ function AdminPage() {
 }
 
 export default AdminPage;
+
